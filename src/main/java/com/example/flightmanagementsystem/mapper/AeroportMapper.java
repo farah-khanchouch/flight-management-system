@@ -2,29 +2,28 @@ package com.example.flightmanagementsystem.mapper;
 
 import com.example.flightmanagementsystem.dto.AeroportDTO;
 import com.example.flightmanagementsystem.model.Aeroport;
-import org.springframework.stereotype.Component;
+import org.mapstruct.*;
 
-@Component
-public class AeroportMapper {
-    public AeroportDTO toDTO(Aeroport aeroport) {
-        AeroportDTO dto = new AeroportDTO();
-        dto.setId(aeroport.getId());
-        dto.setCodeIATA(aeroport.getCodeIATA());
-        dto.setNom(aeroport.getNom());
-        dto.setVille(aeroport.getVille());
-        dto.setPays(aeroport.getPays());
-        dto.setCapacitePassagers(aeroport.getCapacitePassagers());
-        return dto;
-    }
+import java.util.List;
 
-    public Aeroport toEntity(AeroportDTO dto) {
-        Aeroport aeroport = new Aeroport();
-        aeroport.setId(dto.getId());
-        aeroport.setCodeIATA(dto.getCodeIATA());
-        aeroport.setNom(dto.getNom());
-        aeroport.setVille(dto.getVille());
-        aeroport.setPays(dto.getPays());
-        aeroport.setCapacitePassagers(dto.getCapacitePassagers());
-        return aeroport;
-    }
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
+public interface AeroportMapper {
+    
+    AeroportDTO toDto(Aeroport aeroport);
+    
+    @Mapping(target = "volsDepart", ignore = true)
+    @Mapping(target = "volsArrivee", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    Aeroport toEntity(AeroportDTO aeroportDTO);
+    
+    List<AeroportDTO> toDtoList(List<Aeroport> aeroports);
+    
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "volsDepart", ignore = true)
+    @Mapping(target = "volsArrivee", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    void updateEntityFromDto(AeroportDTO aeroportDTO, @MappingTarget Aeroport aeroport);
 }

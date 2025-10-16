@@ -1,12 +1,18 @@
 package com.example.flightmanagementsystem.dto;
 
-public class AuthRequestDTO {
-    private String username;
-    private String password;
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-    // Getters and setters
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
-    public String getPassword() { return password; }
-    public void setPassword(String password) { this.password = password; }
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class AuthRequestDTO {
+    
+    @NotBlank(message = "Le nom d'utilisateur ou l'email est obligatoire")
+    private String usernameOrEmail;
+    
+    @NotBlank(message = "Le mot de passe est obligatoire")
+    private String password;
 }
