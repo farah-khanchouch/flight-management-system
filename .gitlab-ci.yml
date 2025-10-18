@@ -1,0 +1,78 @@
+stages:
+  - build
+  - test
+  - package
+  - deploy
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version"
+
+cache:
+  paths:
+    - .m2/
+    - target/
+
+build:
+  stage: build
+  image: openjdk:17
+  script:
+    - mvn $MAVEN_CLI_OPTS compile
+  artifacts:
+    paths:
+      - target/
+    expire_in: 1 hour
+
+test:
+  stage: test
+  image: openjdk:17
+  script:
+    - mvn $MAVEN_CLI_OPTS test
+  coverage: '/Coverage: (\d+\.\d+%)/'
+  artifacts:
+    paths:
+      - target/site/jacoco/
+      - target/surefire-reports/
+    reports:
+      junit: target/surefire-reports/TEST-*.xml
+      coverage_report:
+        coverage_format: jacoco
+        path: target/site/jacoco/jacoco.xml
+
+package:
+  stage: package
+  image: openjdk:17
+  script:
+    - mvn $MAVEN_CLI_OPTS package -DskipTests
+  artifacts:
+    paths:
+      - target/*.jar
+    expire_in: 1 week
+
+deploy-staging:
+  stage: deploy
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+    - docker build -t $DOCKER_IMAGE:staging .
+    - docker-compose -f docker-compose.yml up -d
+  only:
+    - develop
+
+deploy-production:
+  stage: deploy
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+    - docker build -t $DOCKER_IMAGE:production .
+    - docker tag $DOCKER_IMAGE:production $DOCKER_IMAGE:latest
+    - docker push $DOCKER_IMAGE:production
+    - docker push $DOCKER_IMAGE:latest
+    # Ici, déploiement vers Kubernetes ou autre plateforme
+  only:
+    - main
+  when: manual

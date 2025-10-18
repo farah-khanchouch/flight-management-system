@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database - Staging
+  postgres:
+    image: postgres:15-alpine
+    container_name: flight-postgres-staging
+    environment:
+      POSTGRES_DB: flight_management_db_staging
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"  # Port différent pour staging
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+      - ../init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - flight-staging-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Spring Boot Application - Staging
+  flight-app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: flight-management-app-staging
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/flight_management_db_staging
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_PROFILES_ACTIVE: staging
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      JWT_SECRET: staging-secret-key-change-in-production
+      JWT_EXPIRATION: 86400000
+    ports:
+      - "8081:8080"  # Port différent pour staging
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - flight-staging-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PgAdmin - Staging
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: flight-pgadmin-staging
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@staging.airline.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "5051:80"  # Port différent pour staging
+    volumes:
+      - pgadmin_staging_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - flight-staging-network
+    restart: unless-stopped
+
+networks:
+  flight-staging-network:
+    driver: bridge
+    name: flight-management-staging-network
+
+volumes:
+  postgres_staging_data:
+    name: flight-postgres-staging-data
+  pgadmin_staging_data:
+    name: flight-pgadmin-staging-data

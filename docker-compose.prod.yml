@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database - Production
+  postgres:
+    image: postgres:15-alpine
+    container_name: flight-postgres-prod
+    environment:
+      POSTGRES_DB: flight_management_db_prod
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD_PROD:-strong_prod_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - flight-prod-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Spring Boot Application - Production
+  flight-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flight-management-app-prod
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/flight_management_db_prod
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD_PROD:-strong_prod_password}
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      JWT_SECRET: ${JWT_SECRET_PROD:-your-very-secure-production-jwt-secret-key}
+      JWT_EXPIRATION: 86400000
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - flight-prod-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # PgAdmin - Production (optionnel, retirer en prod réel)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: flight-pgadmin-prod
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@prod.airline.com
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin_prod_password}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_prod_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - flight-prod-network
+    restart: unless-stopped
+    profiles:
+      - tools  # Démarrer seulement si nécessaire
+
+networks:
+  flight-prod-network:
+    driver: bridge
+    name: flight-management-prod-network
+
+volumes:
+  postgres_prod_data:
+    name: flight-postgres-prod-data
+  pgadmin_prod_data:
+    name: flight-pgadmin-prod-data
